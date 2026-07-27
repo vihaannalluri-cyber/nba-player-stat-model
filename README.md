@@ -26,9 +26,6 @@ src/nba_predictor/features.py creates the model inputs
 src/nba_predictor/model.py   trains and runs the models
 src/nba_predictor/cli.py     command-line options
 main.py                      starts the program
-app.py                       Flask server and prediction endpoint
-templates/index.html         webpage
-static/                      page styles and JavaScript
 ```
 
 ## Setup
@@ -41,26 +38,6 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-## Run the simple app
-
-Start the Flask app:
-
-```bash
-python3 app.py
-```
-
-Open `http://127.0.0.1:5000` in your browser. Choose a player, opponent, game date, and location, then click **Predict stats**.
-
-The app does not use a database or save user information. The browser sends the matchup to one Python endpoint, which runs the existing model and returns the result.
-
-## Put it online
-
-Click the button below, sign in to Render, connect GitHub if asked, and approve the Blueprint. Render will build the app and give you a public `onrender.com` link.
-
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/vihaannalluri-cyber/nba-player-stat-model)
-
-The free service may take a short time to wake up after it has not been used for a while.
-
 ## Make a prediction
 
 ```bash
@@ -72,6 +49,8 @@ python3 main.py predict \
   --date 2026-10-23 \
   --home
 ```
+
+Change the player, opponent, date, and `--home` or `--away` values to predict a different matchup.
 
 Example output:
 

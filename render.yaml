@@ -1,9 +1,0 @@
-services:
-  - type: web
-    name: nba-player-stat-model
-    runtime: python
-    plan: free
-    buildCommand: pip install -e .
-    startCommand: gunicorn app:app --workers 1 --timeout 120
-    healthCheckPath: /health
-    autoDeployTrigger: commit
