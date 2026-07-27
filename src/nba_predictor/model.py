@@ -1,0 +1,90 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import joblib
+import numpy as np
+import pandas as pd
+from sklearn.compose import ColumnTransformer
+from sklearn.ensemble import HistGradientBoostingRegressor
+from sklearn.impute import SimpleImputer
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+
+from .features import TARGETS, build_features, model_feature_columns
+
+
+def make_pipeline(numeric: list[str], categorical: list[str]) -> Pipeline:
+    preprocessor = ColumnTransformer(
+        [
+            ("numeric", Pipeline([("impute", SimpleImputer(strategy="median")), ("scale", StandardScaler())]), numeric),
+            ("categorical", Pipeline([("impute", SimpleImputer(strategy="most_frequent")), ("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False))]), categorical),
+        ],
+        sparse_threshold=0,
+    )
+    regressor = HistGradientBoostingRegressor(
+        learning_rate=0.06,
+        max_iter=300,
+        max_leaf_nodes=24,
+        l2_regularization=1.0,
+        random_state=42,
+    )
+    return Pipeline([("preprocess", preprocessor), ("model", regressor)])
+
+
+def chronological_split(frame: pd.DataFrame, test_fraction: float = 0.2) -> tuple[pd.DataFrame, pd.DataFrame, str]:
+    dates = np.sort(frame["GAME_DATE"].dropna().unique())
+    if len(dates) < 10:
+        raise ValueError("At least 10 distinct game dates are required")
+    cutoff = dates[max(1, int(len(dates) * (1 - test_fraction)))]
+    train = frame[frame["GAME_DATE"] < cutoff]
+    test = frame[frame["GAME_DATE"] >= cutoff]
+    return train, test, str(pd.Timestamp(cutoff).date())
+
+
+def train_models(games: pd.DataFrame, model_dir: str | Path, report_path: str | Path) -> dict:
+    featured = build_features(games)
+    # New players with no previous game cannot be meaningfully forecast by this version.
+    featured = featured[featured["CAREER_GAMES_BEFORE"] >= 1].copy()
+    numeric, categorical = model_feature_columns()
+    columns = numeric + categorical
+    train, test, cutoff = chronological_split(featured)
+    model_dir = Path(model_dir)
+    model_dir.mkdir(parents=True, exist_ok=True)
+    report: dict = {"cutoff_date": cutoff, "train_rows": len(train), "test_rows": len(test), "targets": {}}
+
+    for target in TARGETS:
+        model = make_pipeline(numeric, categorical)
+        model.fit(train[columns], train[target])
+        predicted = np.clip(model.predict(test[columns]), 0, None)
+        baseline = test[f"{target}_ROLL_10"].fillna(train[target].mean())
+        report["targets"][target] = {
+            "mae": round(float(mean_absolute_error(test[target], predicted)), 4),
+            "rmse": round(float(mean_squared_error(test[target], predicted) ** 0.5), 4),
+            "baseline_rolling_10_mae": round(float(mean_absolute_error(test[target], baseline)), 4),
+        }
+        # Refit on all known games for future predictions.
+        model.fit(featured[columns], featured[target])
+        joblib.dump(model, model_dir / f"{target.lower()}.joblib")
+
+    metadata = {"numeric_features": numeric, "categorical_features": categorical, "targets": TARGETS}
+    (model_dir / "metadata.json").write_text(json.dumps(metadata, indent=2))
+    report_path = Path(report_path)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(report, indent=2))
+    return report
+
+
+def load_and_predict(featured: pd.DataFrame, row_index: int, model_dir: str | Path) -> dict[str, float]:
+    model_dir = Path(model_dir)
+    metadata = json.loads((model_dir / "metadata.json").read_text())
+    columns = metadata["numeric_features"] + metadata["categorical_features"]
+    row = featured.loc[[row_index], columns]
+    result = {}
+    for target in metadata["targets"]:
+        model = joblib.load(model_dir / f"{target.lower()}.joblib")
+        result[target] = round(max(0.0, float(model.predict(row)[0])), 1)
+    return result
+

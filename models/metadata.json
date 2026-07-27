@@ -1,0 +1,43 @@
+{
+  "numeric_features": [
+    "IS_HOME",
+    "DAYS_REST",
+    "IS_BACK_TO_BACK",
+    "CAREER_GAMES_BEFORE",
+    "H2H_GAMES_BEFORE",
+    "MIN_ROLL_5",
+    "MIN_ROLL_10",
+    "MIN_ROLL_20",
+    "MIN_EXPANDING",
+    "PTS_ROLL_5",
+    "PTS_ROLL_10",
+    "PTS_ROLL_20",
+    "PTS_EXPANDING",
+    "REB_ROLL_5",
+    "REB_ROLL_10",
+    "REB_ROLL_20",
+    "REB_EXPANDING",
+    "AST_ROLL_5",
+    "AST_ROLL_10",
+    "AST_ROLL_20",
+    "AST_EXPANDING",
+    "PTS_PER_MIN_ROLL_10",
+    "PTS_H2H_5",
+    "OPP_ALLOWED_PTS_10",
+    "REB_PER_MIN_ROLL_10",
+    "REB_H2H_5",
+    "OPP_ALLOWED_REB_10",
+    "AST_PER_MIN_ROLL_10",
+    "AST_H2H_5",
+    "OPP_ALLOWED_AST_10"
+  ],
+  "categorical_features": [
+    "TEAM_ABBREVIATION",
+    "OPPONENT"
+  ],
+  "targets": [
+    "PTS",
+    "REB",
+    "AST"
+  ]
+}
