@@ -8,8 +8,11 @@ from .features import add_future_matchup
 from .model import load_and_predict, train_models
 
 
-def parser() -> argparse.ArgumentParser:
-    root = argparse.ArgumentParser(prog="nba_predictor")
+def build_parser() -> argparse.ArgumentParser:
+    root = argparse.ArgumentParser(
+        prog="nba_predictor",
+        description="Train NBA player models and project future box scores.",
+    )
     commands = root.add_subparsers(dest="command", required=True)
 
     download = commands.add_parser("download", help="download NBA player game logs")
@@ -38,28 +41,37 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    args = parser().parse_args()
+    args = build_parser().parse_args()
+
     if args.command == "download":
         games = download_seasons(args.seasons, args.output, args.pause)
         print(f"Saved {len(games):,} player-games to {args.output}")
-    elif args.command == "validate":
+        return
+
+    if args.command == "validate":
         games = read_games(args.data)
         print(f"Valid: {len(games):,} rows, {games['PLAYER_NAME'].nunique():,} players")
-    elif args.command == "train":
+        return
+
+    if args.command == "train":
         report = train_models(read_games(args.data), args.models, args.report)
         print(json.dumps(report, indent=2))
-    elif args.command == "predict":
-        games = read_games(args.data)
-        featured, row_index = add_future_matchup(
-            games, args.player, args.opponent, args.date, args.home
-        )
-        result = load_and_predict(featured, row_index, args.models)
-        payload = {
-            "player": args.player,
-            "opponent": args.opponent.upper(),
-            "date": args.date,
-            "location": "home" if args.home else "away",
-            "prediction": result,
-        }
-        print(json.dumps(payload, indent=2))
+        return
 
+    games = read_games(args.data)
+    featured, row_index = add_future_matchup(
+        games, args.player, args.opponent, args.date, args.home
+    )
+    prediction = load_and_predict(featured, row_index, args.models)
+    print(
+        json.dumps(
+            {
+                "player": args.player,
+                "opponent": args.opponent.upper(),
+                "date": args.date,
+                "location": "home" if args.home else "away",
+                "prediction": prediction,
+            },
+            indent=2,
+        )
+    )

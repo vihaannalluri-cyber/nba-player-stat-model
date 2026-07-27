@@ -2,20 +2,15 @@
 
 from __future__ import annotations
 
-import os
-import sys
 from functools import lru_cache
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request
+from nba_predictor.data import read_games
+from nba_predictor.features import add_future_matchup
+from nba_predictor.model import load_and_predict
 
 BASE_DIR = Path(__file__).resolve().parents[1]
-sys.path.insert(0, os.fspath(BASE_DIR / "src"))
-
-from nba_predictor.data import read_games  # noqa: E402
-from nba_predictor.features import add_future_matchup  # noqa: E402
-from nba_predictor.model import load_and_predict  # noqa: E402
-
 DATA_PATH = BASE_DIR / "data" / "player_games.csv"
 MODEL_PATH = BASE_DIR / "models"
 NBA_TEAMS = (
@@ -29,7 +24,6 @@ app = Flask(__name__)
 
 @lru_cache(maxsize=1)
 def load_games():
-    """Load and normalize the historical dataset once per server process."""
     return read_games(DATA_PATH)
 
 
@@ -54,8 +48,10 @@ def predict():
     game_date = str(payload.get("date", "")).strip()
     location = str(payload.get("location", "home")).lower()
 
-    if not player or opponent not in NBA_TEAMS or not game_date:
+    if not all((player, opponent, game_date)):
         return jsonify({"error": "Choose a player, opponent, and game date."}), 400
+    if opponent not in NBA_TEAMS:
+        return jsonify({"error": "Choose a valid NBA opponent."}), 400
     if location not in {"home", "away"}:
         return jsonify({"error": "Location must be home or away."}), 400
 

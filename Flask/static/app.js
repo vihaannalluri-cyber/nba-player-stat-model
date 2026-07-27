@@ -1,12 +1,19 @@
 const form = document.querySelector("#prediction-form");
-const error = document.querySelector("#error");
+const errorMessage = document.querySelector("#error");
+const submitButton = form.querySelector("button");
+const buttonLabel = document.querySelector("#button-label");
+const resultContext = document.querySelector("#result-context");
+const statElements = {
+  PTS: document.querySelector("#pts"),
+  REB: document.querySelector("#reb"),
+  AST: document.querySelector("#ast"),
+};
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  error.textContent = "";
-  const button = form.querySelector("button");
-  button.disabled = true;
-  button.firstChild.textContent = "Calculating… ";
+  errorMessage.textContent = "";
+  submitButton.disabled = true;
+  buttonLabel.textContent = "Calculating…";
 
   const payload = {
     player: document.querySelector("#player").value,
@@ -24,15 +31,15 @@ form.addEventListener("submit", async (event) => {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Prediction failed.");
 
-    document.querySelector("#pts").textContent = result.prediction.PTS.toFixed(1);
-    document.querySelector("#reb").textContent = result.prediction.REB.toFixed(1);
-    document.querySelector("#ast").textContent = result.prediction.AST.toFixed(1);
-    document.querySelector("#result-context").textContent =
+    for (const [stat, value] of Object.entries(result.prediction)) {
+      statElements[stat].textContent = value.toFixed(1);
+    }
+    resultContext.textContent =
       `${result.player} · ${result.location === "home" ? "vs" : "at"} ${result.opponent}`;
   } catch (failure) {
-    error.textContent = failure.message;
+    errorMessage.textContent = failure.message;
   } finally {
-    button.disabled = false;
-    button.firstChild.textContent = "Run projection ";
+    submitButton.disabled = false;
+    buttonLabel.textContent = "Run projection";
   }
 });
