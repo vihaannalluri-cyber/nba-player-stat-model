@@ -26,7 +26,9 @@ src/nba_predictor/features.py creates the model inputs
 src/nba_predictor/model.py   trains and runs the models
 src/nba_predictor/cli.py     command-line options
 main.py                      starts the program
-app.py                       simple Streamlit interface
+app.py                       Flask server and prediction endpoint
+templates/index.html         webpage
+static/                      page styles and JavaScript
 ```
 
 ## Setup
@@ -41,13 +43,15 @@ pip install -e .
 
 ## Run the simple app
 
-Start the Streamlit interface:
+Start the Flask app:
 
 ```bash
-streamlit run app.py
+python3 app.py
 ```
 
-It will open in your browser. Choose a player, opponent, game date, and location, then click **Predict stats**.
+Open `http://127.0.0.1:5000` in your browser. Choose a player, opponent, game date, and location, then click **Predict stats**.
+
+The app does not use a database or save user information. The browser sends the matchup to one Python endpoint, which runs the existing model and returns the result.
 
 ## Make a prediction
 
