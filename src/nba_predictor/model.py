@@ -78,6 +78,11 @@ def _score_model(model, train, test, target):
 
 def train_models(games, model_dir, report_path):
     featured = build_features(games)
+    return train_feature_models(featured, model_dir, report_path)
+
+
+def train_feature_models(featured, model_dir, report_path):
+    """Train from a feature table produced by build_features.py."""
     featured = featured[featured["CAREER_GAMES_BEFORE"] >= 1].copy()
     numeric, categorical = model_feature_columns()
     columns = numeric + categorical

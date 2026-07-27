@@ -16,10 +16,24 @@ I designed the model logic, prepared the game data, and decided which stats the 
 
 The rolling stats are shifted by one game. This is important because it stops the model from accidentally using information from the game it is trying to predict.
 
+## Model and evaluation
+
+The project trains one histogram gradient-boosting model for each target: points, rebounds, and assists. Evaluation uses the newest 20% of game dates as a held-out test set, so future games never leak into training.
+
+| Target | Model MAE | Rolling-average baseline MAE |
+|---|---:|---:|
+| Points | 4.5996 | 4.6764 |
+| Rebounds | 1.8942 | 1.9389 |
+| Assists | 1.3494 | 1.3714 |
+
+After evaluation, each model is retrained on every available historical row and saved in `models/` for predictions.
+
 ## Project files
 
 ```text
 data/player_games.csv        historical player game data
+build_features.py            builds the model-ready feature table
+train.py                     trains and evaluates all three models
 models/                      saved points, rebounds, and assists models
 src/nba_predictor/data.py    loads and cleans the data
 src/nba_predictor/features.py creates the model inputs
@@ -84,13 +98,19 @@ python3 main.py download \
   --output data/player_games.csv
 ```
 
-Train new models:
+Build the features, then train new models:
 
 ```bash
-python3 main.py train \
-  --data data/player_games.csv \
-  --models models \
-  --report outputs/metrics.json
+python3 build_features.py
+python3 train.py
 ```
 
-The model tests the last 20% of game dates before retraining on all of the data. The predictions do not include injuries, minutes limits, or last-minute lineup changes, so they should not be treated as betting advice.
+`build_features.py` creates `data/features.csv` from the historical games. `train.py` tests the last 20% of game dates, prints the evaluation results, retrains on all available rows, and saves the finished models in `models/`.
+
+The original one-command training option still works:
+
+```bash
+python3 main.py train --data data/player_games.csv --models models --report outputs/metrics.json
+```
+
+The predictions do not include injuries, minutes limits, or last-minute lineup changes, so they should not be treated as betting advice.
