@@ -1,7 +1,7 @@
 from datetime import timedelta
 from pathlib import Path
 
-import streamlit as st
+from flask import Flask, jsonify, render_template, request
 
 from nba_predictor.data import read_games
 from nba_predictor.features import add_future_matchup
@@ -18,51 +18,54 @@ NBA_TEAMS = [
     "OKC", "ORL", "PHI", "PHX", "POR", "SAC", "SAS", "TOR", "UTA", "WAS",
 ]
 
-
-@st.cache_data
-def load_data():
-    return read_games(DATA_FILE)
+app = Flask(__name__)
+games = read_games(DATA_FILE)
 
 
-st.set_page_config(page_title="NBA Player Stat Predictor", page_icon="🏀")
-st.title("NBA Player Stat Predictor")
-st.write("Choose a player and matchup to predict points, rebounds, and assists.")
+@app.route("/")
+def home():
+    players = sorted(games["PLAYER_NAME"].unique())
+    first_future_date = games["GAME_DATE"].max().date() + timedelta(days=1)
+    return render_template(
+        "index.html",
+        players=players,
+        teams=NBA_TEAMS,
+        first_future_date=first_future_date.isoformat(),
+    )
 
-games = load_data()
-players = sorted(games["PLAYER_NAME"].unique())
-first_future_date = games["GAME_DATE"].max().date() + timedelta(days=1)
 
-with st.form("prediction_form"):
-    player = st.selectbox("Player", players)
+@app.route("/predict", methods=["POST"])
+def predict():
+    form = request.get_json()
+    player = form.get("player", "").strip()
+    opponent = form.get("opponent", "").upper()
+    game_date = form.get("date", "")
+    location = form.get("location", "home")
 
-    left, right = st.columns(2)
-    with left:
-        opponent = st.selectbox("Opponent", NBA_TEAMS)
-    with right:
-        game_date = st.date_input(
-            "Game date",
-            value=first_future_date,
-            min_value=first_future_date,
-        )
+    if not player or opponent not in NBA_TEAMS or not game_date:
+        return jsonify({"error": "Please fill out every field."}), 400
 
-    location = st.radio("Location", ["Home", "Away"], horizontal=True)
-    predict_button = st.form_submit_button("Predict stats")
-
-if predict_button:
-    with st.spinner("Running the model..."):
+    try:
         featured_games, row_index = add_future_matchup(
             games,
             player,
             opponent,
-            str(game_date),
-            location == "Home",
+            game_date,
+            location == "home",
         )
         prediction = load_and_predict(featured_games, row_index, MODEL_FOLDER)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
 
-    st.subheader(f"{player} vs. {opponent}")
-    points, rebounds, assists = st.columns(3)
-    points.metric("Points", prediction["PTS"])
-    rebounds.metric("Rebounds", prediction["REB"])
-    assists.metric("Assists", prediction["AST"])
+    return jsonify(
+        {
+            "player": player,
+            "opponent": opponent,
+            "location": location,
+            "prediction": prediction,
+        }
+    )
 
-st.caption("Predictions are for educational use and do not include injury or lineup news.")
+
+if __name__ == "__main__":
+    app.run(debug=True)
