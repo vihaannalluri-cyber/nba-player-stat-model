@@ -1,8 +1,7 @@
-from datetime import timedelta
+import csv
+from datetime import date, timedelta
 from pathlib import Path
 
-import numpy as np
-import pandas as pd
 from flask import Flask, jsonify, render_template, request
 
 from nba_predictor.web_model import load_web_models, predict as predict_stats
@@ -18,53 +17,67 @@ NBA_TEAMS = [
     "OKC", "ORL", "PHI", "PHX", "POR", "SAC", "SAS", "TOR", "UTA", "WAS",
 ]
 
+def read_summary(filename, key_columns):
+    text_columns = set(key_columns) | {"LAST_GAME_DATE", "TEAM_ABBREVIATION"}
+    rows = {}
+    with (DATA_FOLDER / filename).open(newline="") as file:
+        for source_row in csv.DictReader(file):
+            key = tuple(source_row[column] for column in key_columns)
+            row = {}
+            for column, value in source_row.items():
+                if column in text_columns:
+                    row[column] = value
+                else:
+                    row[column] = float(value) if value else None
+            rows[key] = row
+    return rows
+
+
 app = Flask(__name__)
-players = pd.read_csv(DATA_FOLDER / "web_players.csv", parse_dates=["LAST_GAME_DATE"])
-matchups = pd.read_csv(DATA_FOLDER / "web_matchups.csv")
-opponents = pd.read_csv(DATA_FOLDER / "web_opponents.csv")
+players = read_summary("web_players.csv", ["PLAYER_NAME"])
+matchups = read_summary("web_matchups.csv", ["PLAYER_NAME", "OPPONENT"])
+opponents = read_summary("web_opponents.csv", ["OPPONENT"])
 web_models = load_web_models(MODEL_FOLDER)
 
 
 def make_prediction_row(player, opponent, game_date, is_home):
-    player_info = players[players["PLAYER_NAME"] == player]
-    if player_info.empty:
+    player_info = players.get((player,))
+    if player_info is None:
         raise ValueError(f"Player not found in data: {player}")
 
-    row = player_info.iloc[0].to_dict()
-    last_game_date = row.pop("LAST_GAME_DATE")
+    row = player_info.copy()
+    last_game_date = date.fromisoformat(row.pop("LAST_GAME_DATE"))
     row.pop("PLAYER_NAME")
 
-    days_rest = (pd.Timestamp(game_date) - last_game_date).days
+    days_rest = (date.fromisoformat(game_date) - last_game_date).days
     days_rest = max(0, min(days_rest, 10))
     row["IS_HOME"] = int(is_home)
     row["DAYS_REST"] = days_rest
     row["IS_BACK_TO_BACK"] = int(days_rest <= 1)
     row["OPPONENT"] = opponent
 
-    matchup = matchups[
-        (matchups["PLAYER_NAME"] == player) & (matchups["OPPONENT"] == opponent)
-    ]
-    if matchup.empty:
+    matchup = matchups.get((player, opponent))
+    if matchup is None:
         row["H2H_GAMES_BEFORE"] = 0
-        row["PTS_H2H_5"] = np.nan
-        row["REB_H2H_5"] = np.nan
-        row["AST_H2H_5"] = np.nan
+        row["PTS_H2H_5"] = None
+        row["REB_H2H_5"] = None
+        row["AST_H2H_5"] = None
     else:
-        matchup_info = matchup.iloc[0]
         for column in ["H2H_GAMES_BEFORE", "PTS_H2H_5", "REB_H2H_5", "AST_H2H_5"]:
-            row[column] = matchup_info[column]
+            row[column] = matchup[column]
 
-    opponent_info = opponents[opponents["OPPONENT"] == opponent].iloc[0]
+    opponent_info = opponents[(opponent,)]
     for column in ["OPP_ALLOWED_PTS_10", "OPP_ALLOWED_REB_10", "OPP_ALLOWED_AST_10"]:
         row[column] = opponent_info[column]
 
-    return pd.DataFrame([row])
+    return row
 
 
 @app.route("/")
 def home():
-    player_names = sorted(players["PLAYER_NAME"].unique())
-    first_future_date = players["LAST_GAME_DATE"].max().date() + timedelta(days=1)
+    player_names = sorted(key[0] for key in players)
+    last_game_date = max(date.fromisoformat(row["LAST_GAME_DATE"]) for row in players.values())
+    first_future_date = last_game_date + timedelta(days=1)
     return render_template(
         "index.html",
         players=player_names,
@@ -91,7 +104,7 @@ def predict():
 
     try:
         prediction_row = make_prediction_row(player, opponent, game_date, location == "home")
-        prediction = predict_stats(prediction_row.iloc[0].to_dict(), web_models)
+        prediction = predict_stats(prediction_row, web_models)
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
 
