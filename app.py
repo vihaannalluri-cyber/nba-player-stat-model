@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from flask import Flask, jsonify, render_template, request
 
-from nba_predictor.model import load_and_predict
+from nba_predictor.web_model import load_web_models, predict as predict_stats
 
 
 PROJECT_FOLDER = Path(__file__).parent
@@ -22,6 +22,7 @@ app = Flask(__name__)
 players = pd.read_csv(DATA_FOLDER / "web_players.csv", parse_dates=["LAST_GAME_DATE"])
 matchups = pd.read_csv(DATA_FOLDER / "web_matchups.csv")
 opponents = pd.read_csv(DATA_FOLDER / "web_opponents.csv")
+web_models = load_web_models(MODEL_FOLDER)
 
 
 def make_prediction_row(player, opponent, game_date, is_home):
@@ -90,7 +91,7 @@ def predict():
 
     try:
         prediction_row = make_prediction_row(player, opponent, game_date, location == "home")
-        prediction = load_and_predict(prediction_row, 0, MODEL_FOLDER)
+        prediction = predict_stats(prediction_row.iloc[0].to_dict(), web_models)
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
 
