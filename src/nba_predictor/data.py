@@ -51,7 +51,10 @@ def _load_season(season, cache_dir):
     if cached_file.exists():
         games = pd.read_csv(cached_file)
     else:
-        from nba_api.stats.endpoints import playergamelogs
+        try:
+            from nba_api.stats.endpoints import playergamelogs
+        except ImportError as exc:
+            raise RuntimeError("Install the project with: pip install -e .") from exc
 
         response = playergamelogs.PlayerGameLogs(
             season_nullable=season,
@@ -67,11 +70,6 @@ def _load_season(season, cache_dir):
 
 def download_seasons(seasons, output, pause=1.0):
     """Download NBA game logs and save a copy of each season."""
-    try:
-        from nba_api.stats.endpoints import playergamelogs
-    except ImportError as exc:
-        raise RuntimeError("Install dependencies with: pip install -r requirements.txt") from exc
-
     output = Path(output)
     cache_dir = output.parent / "season_cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
