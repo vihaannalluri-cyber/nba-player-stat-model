@@ -26,6 +26,7 @@ src/nba_predictor/features.py creates the model inputs
 src/nba_predictor/model.py   trains and runs the models
 src/nba_predictor/cli.py     command-line options
 main.py                      starts the program
+app.py                       simple Streamlit interface
 ```
 
 ## Setup
@@ -37,6 +38,16 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
 ```
+
+## Run the simple app
+
+Start the Streamlit interface:
+
+```bash
+streamlit run app.py
+```
+
+It will open in your browser. Choose a player, opponent, game date, and location, then click **Predict stats**.
 
 ## Make a prediction
 
