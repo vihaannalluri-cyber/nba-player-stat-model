@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 from pathlib import Path
 
@@ -16,7 +14,8 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from .features import TARGETS, build_features, model_feature_columns
 
 
-def make_pipeline(numeric: list[str], categorical: list[str]) -> Pipeline:
+def make_pipeline(numeric, categorical):
+    # Fill missing values first, then prepare the numbers and team names.
     preprocessor = ColumnTransformer(
         [
             (
@@ -55,9 +54,7 @@ def make_pipeline(numeric: list[str], categorical: list[str]) -> Pipeline:
     return Pipeline([("preprocess", preprocessor), ("model", regressor)])
 
 
-def chronological_split(
-    frame: pd.DataFrame, test_fraction: float = 0.2
-) -> tuple[pd.DataFrame, pd.DataFrame, str]:
+def chronological_split(frame, test_fraction=0.2):
     dates = np.sort(frame["GAME_DATE"].dropna().unique())
     if len(dates) < 10:
         raise ValueError("At least 10 distinct game dates are required")
@@ -67,7 +64,7 @@ def chronological_split(
     return train, test, str(pd.Timestamp(cutoff).date())
 
 
-def _score_model(model: Pipeline, train: pd.DataFrame, test: pd.DataFrame, target: str) -> dict:
+def _score_model(model, train, test, target):
     predictions = np.clip(model.predict(test), 0, None)
     baseline = test[f"{target}_ROLL_10"].fillna(train[target].mean())
     actual = test[target]
@@ -79,7 +76,7 @@ def _score_model(model: Pipeline, train: pd.DataFrame, test: pd.DataFrame, targe
     }
 
 
-def train_models(games: pd.DataFrame, model_dir: str | Path, report_path: str | Path) -> dict:
+def train_models(games, model_dir, report_path):
     featured = build_features(games)
     featured = featured[featured["CAREER_GAMES_BEFORE"] >= 1].copy()
     numeric, categorical = model_feature_columns()
@@ -87,7 +84,7 @@ def train_models(games: pd.DataFrame, model_dir: str | Path, report_path: str | 
     train, test, cutoff = chronological_split(featured)
     model_dir = Path(model_dir)
     model_dir.mkdir(parents=True, exist_ok=True)
-    report: dict = {
+    report = {
         "cutoff_date": cutoff,
         "train_rows": len(train),
         "test_rows": len(test),
@@ -114,9 +111,7 @@ def train_models(games: pd.DataFrame, model_dir: str | Path, report_path: str | 
     return report
 
 
-def load_and_predict(
-    featured: pd.DataFrame, row_index: int, model_dir: str | Path
-) -> dict[str, float]:
+def load_and_predict(featured, row_index, model_dir):
     model_dir = Path(model_dir)
     metadata = json.loads((model_dir / "metadata.json").read_text())
     columns = metadata["numeric_features"] + metadata["categorical_features"]

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import argparse
 import json
 
@@ -8,7 +6,7 @@ from .features import add_future_matchup
 from .model import load_and_predict, train_models
 
 
-def build_parser() -> argparse.ArgumentParser:
+def build_parser():
     root = argparse.ArgumentParser(
         prog="nba_predictor",
         description="Train NBA player models and project future box scores.",
@@ -40,7 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
     return root
 
 
-def main() -> None:
+def main():
     args = build_parser().parse_args()
 
     if args.command == "download":
