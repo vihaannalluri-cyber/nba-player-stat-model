@@ -21,10 +21,17 @@ form.addEventListener("submit", async (event) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    const result = await response.json();
+    const responseText = await response.text();
+    let result;
+
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      throw new Error("The model server stopped responding. Please try again in a moment.");
+    }
 
     if (!response.ok) {
-      throw new Error(result.error);
+      throw new Error(result.error || "The prediction could not be completed.");
     }
 
     const location = result.location === "home" ? "vs." : "at";

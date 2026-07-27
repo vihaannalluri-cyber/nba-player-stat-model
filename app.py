@@ -4,7 +4,7 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request
 
 from nba_predictor.data import read_games
-from nba_predictor.features import add_future_matchup
+from nba_predictor.features import build_prediction_row
 from nba_predictor.model import load_and_predict
 
 
@@ -51,14 +51,14 @@ def predict():
         return jsonify({"error": "Please fill out every field."}), 400
 
     try:
-        featured_games, row_index = add_future_matchup(
+        prediction_row = build_prediction_row(
             games,
             player,
             opponent,
             game_date,
             location == "home",
         )
-        prediction = load_and_predict(featured_games, row_index, MODEL_FOLDER)
+        prediction = load_and_predict(prediction_row, 0, MODEL_FOLDER)
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
 
