@@ -34,6 +34,11 @@ def home():
     )
 
 
+@app.route("/health")
+def health():
+    return {"status": "ok"}
+
+
 @app.route("/predict", methods=["POST"])
 def predict():
     form = request.get_json()
