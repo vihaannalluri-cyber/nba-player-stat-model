@@ -46,32 +46,23 @@ def main() -> None:
     if args.command == "download":
         games = download_seasons(args.seasons, args.output, args.pause)
         print(f"Saved {len(games):,} player-games to {args.output}")
-        return
-
-    if args.command == "validate":
+    elif args.command == "validate":
         games = read_games(args.data)
         print(f"Valid: {len(games):,} rows, {games['PLAYER_NAME'].nunique():,} players")
-        return
-
-    if args.command == "train":
+    elif args.command == "train":
         report = train_models(read_games(args.data), args.models, args.report)
         print(json.dumps(report, indent=2))
-        return
-
-    games = read_games(args.data)
-    featured, row_index = add_future_matchup(
-        games, args.player, args.opponent, args.date, args.home
-    )
-    prediction = load_and_predict(featured, row_index, args.models)
-    print(
-        json.dumps(
-            {
-                "player": args.player,
-                "opponent": args.opponent.upper(),
-                "date": args.date,
-                "location": "home" if args.home else "away",
-                "prediction": prediction,
-            },
-            indent=2,
+    elif args.command == "predict":
+        games = read_games(args.data)
+        featured, row_index = add_future_matchup(
+            games, args.player, args.opponent, args.date, args.home
         )
-    )
+        prediction = load_and_predict(featured, row_index, args.models)
+        result = {
+            "player": args.player,
+            "opponent": args.opponent.upper(),
+            "date": args.date,
+            "location": "home" if args.home else "away",
+            "prediction": prediction,
+        }
+        print(json.dumps(result, indent=2))

@@ -1,60 +1,36 @@
 # NBA Player Stat Predictor
 
-Predict an NBA player's points, rebounds, and assists for a future matchup using only information that would have been available before tipoff.
+This is a Python machine learning project that predicts a player's points, rebounds, and assists for a future NBA game.
 
-## Overview
+I designed the model logic, prepared the game data, and decided which stats the model should use. I used AI to help generate some of the boilerplate code based on my logic and data requirements.
 
-This project turns historical NBA player game logs into matchup-specific box-score projections. It builds leakage-safe pregame features, trains a separate gradient-boosting model for each target, evaluates each model chronologically, and exposes predictions through both a command-line runner and a Flask web interface.
+## What the model uses
 
-## Features
+- The player's last 5, 10, and 20 games
+- Average minutes and stats per minute
+- Season averages
+- Previous games against the same opponent
+- Stats the opponent has recently allowed
+- Home or away games
+- Days of rest and back-to-backs
 
-- Points, rebounds, and assists projections.
-- Rolling 5-, 10-, and 20-game player form.
-- Season-to-date and per-minute production signals.
-- Prior head-to-head matchup performance.
-- Opponent points, rebounds, and assists allowed over its last 10 games.
-- Home/away, rest-days, and back-to-back context.
-- Chronological evaluation that prevents future-game leakage.
-- Command-line and browser interfaces.
+The rolling stats are shifted by one game. This is important because it stops the model from accidentally using information from the game it is trying to predict.
 
-## How it works
-
-1. **Collect and validate data:** `nba_predictor.data` downloads or loads player game logs and normalizes them into one canonical schema.
-2. **Build pregame features:** `nba_predictor.features` shifts every rolling statistic so the current game's result cannot leak into its own prediction.
-3. **Train models:** `nba_predictor.model` fits one histogram gradient-boosting pipeline for each target and compares it with a rolling-10 baseline.
-4. **Predict a matchup:** `main.py` or the Flask app appends a future matchup row, derives its pregame features, and loads the trained models.
-
-## Project structure
+## Project files
 
 ```text
-.
-├── Flask/
-│   ├── app.py
-│   ├── static/
-│   └── templates/
-├── data/
-│   └── player_games.csv
-├── models/
-│   ├── ast.joblib
-│   ├── pts.joblib
-│   ├── reb.joblib
-│   └── metadata.json
-├── src/nba_predictor/
-│   ├── cli.py
-│   ├── data.py
-│   ├── features.py
-│   └── model.py
-├── Tests/
-│   └── test_web_app.py
-├── main.py
-├── pyproject.toml
-└── requirements.txt
+data/player_games.csv        historical player game data
+models/                      saved points, rebounds, and assists models
+src/nba_predictor/data.py    loads and cleans the data
+src/nba_predictor/features.py creates the model inputs
+src/nba_predictor/model.py   trains and runs the models
+src/nba_predictor/cli.py     command-line options
+main.py                      starts the program
 ```
 
-## Requirements
+## Setup
 
-- Python 3.10–3.13
-- Pandas, NumPy, scikit-learn, joblib, nba_api, and Flask
+This project works with Python 3.10 through 3.13.
 
 ```bash
 python3 -m venv .venv
@@ -62,15 +38,7 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-## Quick start
-
-Validate the included dataset:
-
-```bash
-python3 main.py validate --data data/player_games.csv
-```
-
-Generate a matchup projection:
+## Make a prediction
 
 ```bash
 python3 main.py predict \
@@ -82,17 +50,31 @@ python3 main.py predict \
   --home
 ```
 
-## Flask web app
+Example output:
 
-```bash
-flask --app Flask/app.py --debug run
+```json
+{
+  "player": "Jayson Tatum",
+  "opponent": "NYK",
+  "date": "2026-10-23",
+  "location": "home",
+  "prediction": {
+    "PTS": 24.0,
+    "REB": 8.5,
+    "AST": 5.1
+  }
+}
 ```
 
-Open `http://127.0.0.1:5000` and choose a player, opponent, date, and game location.
+## Other commands
 
-## Data pipeline and training
+Check that the dataset is formatted correctly:
 
-Download multiple regular seasons:
+```bash
+python3 main.py validate --data data/player_games.csv
+```
+
+Download game logs:
 
 ```bash
 python3 main.py download \
@@ -100,7 +82,7 @@ python3 main.py download \
   --output data/player_games.csv
 ```
 
-Train and evaluate all three target models:
+Train new models:
 
 ```bash
 python3 main.py train \
@@ -109,18 +91,4 @@ python3 main.py train \
   --report outputs/metrics.json
 ```
 
-The final 20% of game dates are held out for evaluation. After evaluation, each model is refit on all available history for future predictions.
-
-## Tests
-
-```bash
-python3 -m unittest discover -s Tests -v
-```
-
-## Responsible use
-
-Historical box scores do not contain injuries, minutes restrictions, late lineup changes, or every factor that affects a player's next game. These projections are for analytical and educational use and should not be treated as betting advice.
-
-## Development disclosure
-
-The project owner designed the prediction logic, prepared the data, defined the feature and leakage constraints, and architected the machine-learning workflow. AI assistance was used to generate and refine boilerplate implementation code around those requirements.
+The model tests the last 20% of game dates before retraining on all of the data. The predictions do not include injuries, minutes limits, or last-minute lineup changes, so they should not be treated as betting advice.
