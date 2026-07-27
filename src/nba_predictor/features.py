@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 
@@ -8,17 +6,18 @@ TARGETS = ["PTS", "REB", "AST"]
 ROLL_WINDOWS = (5, 10, 20)
 
 
-def _shifted_rolling(series: pd.Series, window: int, minimum: int = 1) -> pd.Series:
+def _shifted_rolling(series, window, minimum=1):
+    # shift(1) makes sure the current game is never included in its own features
     return series.shift(1).rolling(window, min_periods=minimum).mean()
 
 
-def _add_player_form(df: pd.DataFrame) -> pd.DataFrame:
+def _add_player_form(df):
     by_player = df.groupby("PLAYER_ID", sort=False, group_keys=False)
     df["DAYS_REST"] = by_player["GAME_DATE"].diff().dt.days.clip(lower=0, upper=10)
     df["IS_BACK_TO_BACK"] = (df["DAYS_REST"] <= 1).astype(int)
     df["CAREER_GAMES_BEFORE"] = by_player.cumcount()
 
-    for stat in ["MIN", *TARGETS]:
+    for stat in ["MIN"] + TARGETS:
         for window in ROLL_WINDOWS:
             df[f"{stat}_ROLL_{window}"] = by_player[stat].transform(
                 lambda values, w=window: _shifted_rolling(values, w)
@@ -37,7 +36,7 @@ def _add_player_form(df: pd.DataFrame) -> pd.DataFrame:
     return df.drop(columns=[f"{stat}_PER_MIN" for stat in TARGETS])
 
 
-def _add_matchup_history(df: pd.DataFrame) -> pd.DataFrame:
+def _add_matchup_history(df):
     by_matchup = df.groupby(["PLAYER_ID", "OPPONENT"], sort=False, group_keys=False)
     df["H2H_GAMES_BEFORE"] = by_matchup.cumcount()
     for stat in TARGETS:
@@ -47,7 +46,8 @@ def _add_matchup_history(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _add_opponent_form(df: pd.DataFrame) -> pd.DataFrame:
+def _add_opponent_form(df):
+    # Team totals from a game are the numbers that the other team allowed.
     team_games = (
         df.groupby(["GAME_ID", "GAME_DATE", "TEAM_ABBREVIATION", "OPPONENT"], as_index=False)[TARGETS]
         .sum()
@@ -60,7 +60,9 @@ def _add_opponent_form(df: pd.DataFrame) -> pd.DataFrame:
         allowed[f"OPP_ALLOWED_{stat}_10"] = allowed.groupby("DEF_TEAM", sort=False)[
             f"TEAM_{stat}"
         ].transform(lambda values: _shifted_rolling(values, 10))
-    allowed = allowed[["GAME_ID", "DEF_TEAM", *[f"OPP_ALLOWED_{s}_10" for s in TARGETS]]]
+    allowed_columns = ["GAME_ID", "DEF_TEAM"]
+    allowed_columns += [f"OPP_ALLOWED_{stat}_10" for stat in TARGETS]
+    allowed = allowed[allowed_columns]
     return df.merge(
         allowed,
         left_on=["GAME_ID", "OPPONENT"],
@@ -69,8 +71,8 @@ def _add_opponent_form(df: pd.DataFrame) -> pd.DataFrame:
     ).drop(columns="DEF_TEAM")
 
 
-def build_features(games: pd.DataFrame) -> pd.DataFrame:
-    """Create features using only games that occurred before each row."""
+def build_features(games):
+    """Turn the game log into the values used by the models."""
     df = games.sort_values(["GAME_DATE", "GAME_ID", "PLAYER_ID"]).copy()
     df = df.reset_index(drop=True)
     df["GAME_DATE"] = pd.to_datetime(df["GAME_DATE"])
@@ -81,7 +83,7 @@ def build_features(games: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def model_feature_columns() -> tuple[list[str], list[str]]:
+def model_feature_columns():
     numeric = [
         "IS_HOME",
         "DAYS_REST",
@@ -89,7 +91,7 @@ def model_feature_columns() -> tuple[list[str], list[str]]:
         "CAREER_GAMES_BEFORE",
         "H2H_GAMES_BEFORE",
     ]
-    for stat in ["MIN", *TARGETS]:
+    for stat in ["MIN"] + TARGETS:
         numeric.extend([f"{stat}_ROLL_{w}" for w in ROLL_WINDOWS])
         numeric.append(f"{stat}_EXPANDING")
     for stat in TARGETS:
@@ -100,13 +102,7 @@ def model_feature_columns() -> tuple[list[str], list[str]]:
     return numeric, categorical
 
 
-def add_future_matchup(
-    games: pd.DataFrame,
-    player: str,
-    opponent: str,
-    date: str,
-    is_home: bool,
-) -> tuple[pd.DataFrame, int]:
+def add_future_matchup(games, player, opponent, date, is_home):
     matches = games[games["PLAYER_NAME"].str.casefold() == player.casefold()]
     if matches.empty:
         raise ValueError(f"Player not found in data: {player}")
@@ -114,16 +110,18 @@ def add_future_matchup(
     team = str(latest["TEAM_ABBREVIATION"])
     game_id = f"FUTURE_{latest['PLAYER_ID']}_{date}"
     row = {column: np.nan for column in games.columns}
-    row |= {
-        "GAME_ID": game_id,
-        "GAME_DATE": pd.Timestamp(date),
-        "PLAYER_ID": latest["PLAYER_ID"],
-        "PLAYER_NAME": latest["PLAYER_NAME"],
-        "TEAM_ABBREVIATION": team,
-        "OPPONENT": opponent.upper(),
-        "IS_HOME": int(is_home),
-        "MATCHUP": f"{team} {'vs.' if is_home else '@'} {opponent.upper()}",
-    }
+    row.update(
+        {
+            "GAME_ID": game_id,
+            "GAME_DATE": pd.Timestamp(date),
+            "PLAYER_ID": latest["PLAYER_ID"],
+            "PLAYER_NAME": latest["PLAYER_NAME"],
+            "TEAM_ABBREVIATION": team,
+            "OPPONENT": opponent.upper(),
+            "IS_HOME": int(is_home),
+            "MATCHUP": f"{team} {'vs.' if is_home else '@'} {opponent.upper()}",
+        }
+    )
     combined = pd.concat([games, pd.DataFrame([row])], ignore_index=True)
     featured = build_features(combined)
     index = featured.index[featured["GAME_ID"] == game_id]

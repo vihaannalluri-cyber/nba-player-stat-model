@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import time
 from pathlib import Path
 
@@ -21,8 +19,8 @@ REQUIRED_COLUMNS = {
 BOX_SCORE_COLUMNS = ["MIN", "PTS", "REB", "AST"]
 
 
-def normalize_games(frame: pd.DataFrame) -> pd.DataFrame:
-    """Normalize an NBA player-game export into the project's canonical schema."""
+def normalize_games(frame):
+    """Clean the game data and add a few columns the model needs."""
     frame = frame.copy()
     missing = REQUIRED_COLUMNS.difference(frame.columns)
     if missing:
@@ -44,11 +42,11 @@ def normalize_games(frame: pd.DataFrame) -> pd.DataFrame:
     return frame.reset_index(drop=True)
 
 
-def read_games(path: str | Path) -> pd.DataFrame:
+def read_games(path):
     return normalize_games(pd.read_csv(path))
 
 
-def _load_season(season: str, cache_dir: Path) -> pd.DataFrame:
+def _load_season(season, cache_dir):
     cached_file = cache_dir / f"player_games_{season}.csv"
     if cached_file.exists():
         games = pd.read_csv(cached_file)
@@ -67,8 +65,8 @@ def _load_season(season: str, cache_dir: Path) -> pd.DataFrame:
     return games
 
 
-def download_seasons(seasons: list[str], output: str | Path, pause: float = 1.0) -> pd.DataFrame:
-    """Download regular-season player game logs, caching one CSV per season."""
+def download_seasons(seasons, output, pause=1.0):
+    """Download NBA game logs and save a copy of each season."""
     try:
         from nba_api.stats.endpoints import playergamelogs
     except ImportError as exc:
